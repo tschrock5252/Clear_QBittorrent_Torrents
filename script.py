@@ -22,8 +22,11 @@ rootLogger.addHandler(streamHandler)
 # Set the logging level to INFO
 rootLogger.setLevel(logging.INFO)
 
-# Log a sample message
-rootLogger.info("This is a sample log message.")
+# Get the current date and time
+#current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# Log the script execution time
+#rootLogger.info("Script executed at %s", current_datetime)
 
 debugmode = False
 testmode = False
@@ -65,7 +68,7 @@ try:
         #    continue
         if tor['category'] == 'radarrr' or tor['category'] == 'sonarr' :
             logging.info('Clearing '+tor['state']+' torrent + data: '+tor['name'])
-            url = 'api/v2/torrents/delete?hashes='+str(tor['hash'])+'&deleteFiles=true'
+            url = 'api/v2/torrents/delete?hashes='+str(tor['hash'])+'&deleteFiles=false'
         else :
             logging.info('Clearing '+tor['state']+' torrent: '+tor['name'])
             url = 'api/v2/torrents/delete?hashes='+str(tor['hash'])+'&deleteFiles=false'
@@ -75,7 +78,7 @@ try:
                 #response.raise_for_status()             # This no longer works
                 trydata = {
                     'hashes': tor['hash'],
-                    'deleteFiles': 'true',
+                    'deleteFiles': 'false',
                 }
                 removeal_response = requests.post('http://10.1.0.125:8080/api/v2/torrents/delete', data=trydata)
 
