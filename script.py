@@ -11,7 +11,6 @@ parser.add_argument('-v','--verbose', action="store_true", help='Verbose output 
 parser.add_argument('-d','--debug', action="store_true", help='Do not action. Implies -v')
 args=parser.parse_args()
 
-
 # Set up logging - kinda important when deleting stuff!
 logFormatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s] %(message)s")
 rootLogger = logging.getLogger()
@@ -21,12 +20,6 @@ rootLogger.addHandler(streamHandler)
 
 # Set the logging level to INFO
 rootLogger.setLevel(logging.INFO)
-
-# Get the current date and time
-#current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-# Log the script execution time
-#rootLogger.info("Script executed at %s", current_datetime)
 
 debugmode = False
 testmode = False
@@ -74,11 +67,9 @@ try:
             url = 'api/v2/torrents/delete?hashes='+str(tor['hash'])+'&deleteFiles=false'
         if not testmode:
             try:
-                #response = requests.get(baseurl+url)    # This no longer works
-                #response.raise_for_status()             # This no longer works
                 trydata = {
                     'hashes': tor['hash'],
-                    'deleteFiles': 'false',
+                    'deleteFiles': False,
                 }
                 removeal_response = requests.post('http://10.1.0.125:8080/api/v2/torrents/delete', data=trydata)
 
