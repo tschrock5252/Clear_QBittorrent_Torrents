@@ -11,5 +11,5 @@ docker tag tschrock52/clear_qbt_complete tschrock52/clear_qbt_complete:latest
 docker push tschrock52/clear_qbt_complete
 ##### This is hosted on Dockerhub presently
 
-### Run Using
-docker run --name Clear_QBittorrent_Torrents -itd --network=host tschrock52/clear_qbt_complete
+### Run on unRAID Using
+docker run --name Clear-qBittorrent-Torrents -itd --network=host tschrock52/clear_qbt_complete
