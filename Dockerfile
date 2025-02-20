@@ -1,18 +1,21 @@
-FROM python:2.7.11
+# Use the official Python 3.11 image
+FROM python:3.11
 
-# Set the working directory in the container
+# Set the working directory inside the container
 WORKDIR /app
 
-# Copy the requirements file into the container
-COPY requirements.txt /app
+# Install virtualenv before using it
+RUN pip install --upgrade pip && pip install virtualenv
 
-# Create and activate a virtual environment
+# Create a virtual environment
 RUN virtualenv venv
-ENV PATH="/app/venv/bin:$PATH"
-#ENV PYTHONPATH="/app/venv/bin:$PATH"
 
-# Install dependencies from the requirements.txt file
-RUN pip install -r requirements.txt
+# Set the PATH to use the virtual environment
+ENV PATH="/app/venv/bin:$PATH"
+
+# Copy the requirements file and install dependencies inside the virtual environment
+COPY requirements.txt /app
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the Python script into the container
 COPY script.py /app
