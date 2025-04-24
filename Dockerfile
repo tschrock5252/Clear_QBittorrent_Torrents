@@ -21,4 +21,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY script.py /app
 
 # Run the Python script when the container starts
-CMD ["python", "script.py"]
+CMD ["python", "script.py", "--baseurl", "http://10.1.0.125:8282"]

@@ -1,87 +1,94 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 import sys
 import json
 import requests
 import logging
 import argparse
+import urllib3
 
-parser=argparse.ArgumentParser()
-parser.add_argument('-b','--baseurl', help='Override url to qBitTorrent. Defaults to http://10.1.0.125:8080/')
-parser.add_argument('-v','--verbose', action="store_true", help='Verbose output for debug')
-parser.add_argument('-d','--debug', action="store_true", help='Do not action. Implies -v')
-args=parser.parse_args()
+# Disable warnings for self-signed certs if --insecure is used
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Set up logging - kinda important when deleting stuff!
+# Credentials (can be moved to env vars or config file)
+USERNAME = "Tyler"
+PASSWORD = "tschrock52"
+DEFAULT_BASEURL = 'https://10.1.0.125:8282/'
+
+# Parse CLI arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('-b', '--baseurl', default=DEFAULT_BASEURL, help='Base URL to qBittorrent (default: https://10.1.0.125:8443/)')
+parser.add_argument('-v', '--verbose', action="store_true", help='Enable verbose logging')
+parser.add_argument('-d', '--debug', action="store_true", help='Dry run — no deletion (implies verbose)')
+parser.add_argument('--insecure', action="store_true", help='Disable SSL certificate verification (for self-signed certs)')
+args = parser.parse_args()
+
+# Configure logging
 logFormatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s] %(message)s")
-rootLogger = logging.getLogger()
+logger = logging.getLogger()
 streamHandler = logging.StreamHandler(sys.stdout)
 streamHandler.setFormatter(logFormatter)
-rootLogger.addHandler(streamHandler)
+logger.addHandler(streamHandler)
+logger.setLevel(logging.DEBUG if (args.verbose or args.debug) else logging.INFO)
 
-# Set the logging level to INFO
-rootLogger.setLevel(logging.INFO)
+testmode = args.debug
+verify_ssl = not args.insecure
 
-debugmode = False
-testmode = False
-baseurl = 'http://10.1.0.125:8080/'
-if args.verbose or args.debug:
-    debugmode = True
-    consoleHandler = logging.StreamHandler(sys.stdout)
-    consoleHandler.setFormatter(logFormatter)
-    rootLogger.addHandler(consoleHandler)
-    rootLogger.setLevel(logging.DEBUG)
-if args.debug:
-    testmode = True
-if args.baseurl:
-    baseurl = args.baseurl
+# Set up session for persistent login
+session = requests.Session()
+headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
-logging.debug('baseurl is '+baseurl)
+# Step 1: Login
+login_url = args.baseurl.rstrip('/') + '/api/v2/auth/login'
+login_data = {
+    'username': USERNAME,
+    'password': PASSWORD
+}
 
-# OK lets do stuff
-exitcode = 0
-url = 'api/v2/torrents/info?filter=completed'
 try:
-    response = requests.get(baseurl+url)
-    response.raise_for_status()
-    data = response.json()
-    # Observed status for torrents in 'completed' filter:
-    #  uploading - seeding
-    #  stalledUP - seeding but stalled
-    # >pausedUP  - seeding and manually paused
-    #            - seeding and ratio reached but seeding time still to go
+    logger.debug(f"Attempting login with SSL verification: {verify_ssl}")
+    login_response = session.post(login_url, data=login_data, headers=headers, verify=verify_ssl)
+    if login_response.status_code != 200 or 'ok' not in login_response.text.lower():
+        logger.error(f'Login failed: {login_response.status_code} - {login_response.text}')
+        sys.exit(1)
+    logger.debug('Login successful.')
+except requests.exceptions.RequestException as err:
+    logger.error('Login error: ' + str(err))
+    sys.exit(1)
 
-    if len(data) == 0:
-        logging.debug('No completed torrents to clear')
-        if debugmode:
-            print('')
-        exit(0)
-    for tor in data:
-        #if tor['state'] != 'pausedUP':
-        #    logging.debug('Skipping '+tor['state']+' torrent: '+tor['name'])
-        #    continue
-        if tor['category'] == 'radarrr' or tor['category'] == 'sonarr' :
-            logging.info('Clearing '+tor['state']+' torrent + data: '+tor['name'])
-            url = 'api/v2/torrents/delete?hashes='+str(tor['hash'])+'&deleteFiles=false'
-        else :
-            logging.info('Clearing '+tor['state']+' torrent: '+tor['name'])
-            url = 'api/v2/torrents/delete?hashes='+str(tor['hash'])+'&deleteFiles=false'
+# Step 2: Fetch completed torrents
+try:
+    info_url = args.baseurl.rstrip('/') + '/api/v2/torrents/info?filter=completed'
+    response = session.get(info_url, verify=verify_ssl)
+    response.raise_for_status()
+    torrents = response.json()
+
+    if not torrents:
+        logger.info('No completed torrents found.')
+        sys.exit(0)
+
+    for tor in torrents:
+        name = tor['name']
+        state = tor['state']
+        hash_ = tor['hash']
+        category = tor.get('category', '')
+        logger.info(f"Found completed torrent: {name} [{state}]")
+
+        delete_url = args.baseurl.rstrip('/') + '/api/v2/torrents/delete'
+        delete_data = {
+            'hashes': hash_,
+            'deleteFiles': False
+        }
+
         if not testmode:
             try:
-                trydata = {
-                    'hashes': tor['hash'],
-                    'deleteFiles': False,
-                }
-                removeal_response = requests.post('http://10.1.0.125:8080/api/v2/torrents/delete', data=trydata)
-
+                delete_response = session.post(delete_url, data=delete_data, verify=verify_ssl)
+                delete_response.raise_for_status()
+                logger.info(f"Deleted torrent: {name}")
             except requests.exceptions.RequestException as err:
-                logging.error(str(err))
-                exitcode = 1
-    logging.debug('Exiting normally with code '+str(exitcode))
-    if debugmode == 1:
-        print('')
-    exit(exitcode)
+                logger.error(f"Failed to delete {name}: {err}")
+        else:
+            logger.debug(f"[DEBUG] Would delete torrent: {name}")
 except requests.exceptions.RequestException as err:
-    logging.error(str(err))
-    if debugmode == 1:
-        print('')
-    exit(1)
+    logger.error('Error fetching torrents: ' + str(err))
+    sys.exit(1)
+
